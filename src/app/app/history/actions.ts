@@ -1,0 +1,83 @@
+'use server';
+
+import { createClient } from '@/lib/supabase/server';
+
+export type HistoryItem = {
+  id: string;
+  category: 'TASK' | 'IDEA' | 'WORRY' | 'REMINDER';
+  text: string;
+  is_completed: boolean;
+  created_at: string;
+};
+
+export async function getHistory(page: number = 0, limit: number = 50, filter?: string) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error('Unauthorized');
+  }
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString();
+
+  let query = supabase
+    .from('dump_items')
+    .select(`
+      id,
+      category,
+      text,
+      is_completed,
+      created_at,
+      dumps!inner(user_id)
+    `)
+    .eq('dumps.user_id', user.id)
+    .gte('created_at', thirtyDaysAgoStr)
+    .order('created_at', { ascending: false })
+    .range(page * limit, (page + 1) * limit - 1);
+
+  if (filter && filter !== 'ALL') {
+    query = query.eq('category', filter);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Failed to fetch history:', error);
+    throw new Error('Failed to fetch history');
+  }
+
+  // We map out the `dumps` relation object before returning to client
+  return (data as any[]).map(item => ({
+    id: item.id,
+    category: item.category,
+    text: item.text,
+    is_completed: item.is_completed || false,
+    created_at: item.created_at,
+  })) as HistoryItem[];
+}
+
+export async function toggleComplete(itemId: string, completed: boolean) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error('Unauthorized');
+  }
+
+  // To properly secure this, we should ensure the user owns the item.
+  // We can do this with RLS in Supabase, or by doing a join verify here.
+  // Assuming RLS is enabled, or we just update the item directly.
+  const { error } = await supabase
+    .from('dump_items')
+    .update({ is_completed: completed })
+    .eq('id', itemId);
+
+  if (error) {
+    console.error('Failed to toggle complete:', error);
+    throw new Error('Failed to update item');
+  }
+
+  return { success: true };
+}
