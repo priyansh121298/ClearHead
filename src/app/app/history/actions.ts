@@ -49,6 +49,7 @@ export async function getHistory(page: number = 0, limit: number = 50, filter?: 
   }
 
   // We map out the `dumps` relation object before returning to client
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data as any[]).map(item => ({
     id: item.id,
     category: item.category,

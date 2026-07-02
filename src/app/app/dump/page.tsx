@@ -26,7 +26,7 @@ const AnimatedLoading = () => {
       setIndex(prev => (prev + 1) % messages.length);
     }, 1500);
     return () => clearInterval(timer);
-  }, []);
+  }, [messages.length]);
 
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 0' }}>
@@ -74,6 +74,7 @@ export default function DumpPage() {
   const [isHoveredSubmit, setIsHoveredSubmit] = useState(false);
   const [isActiveSubmit, setIsActiveSubmit] = useState(false);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
@@ -83,11 +84,13 @@ export default function DumpPage() {
     });
 
     if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = true;
       recognitionRef.current.interimResults = true;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       recognitionRef.current.onresult = (event: any) => {
         let currentTranscript = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -99,6 +102,7 @@ export default function DumpPage() {
         });
       };
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       recognitionRef.current.onerror = (event: any) => {
         console.error('Speech recognition error', event.error);
         setIsRecording(false);
@@ -126,12 +130,16 @@ export default function DumpPage() {
 
     try {
       const response = await processDump(text, userId);
-      setResults(response.items.map(item => ({
-        ...item,
-        id: crypto.randomUUID(),
-        is_completed: false
-      })));
-      setText('');
+      if (response.success && response.items) {
+        setResults(response.items.map(item => ({
+          ...item,
+          id: crypto.randomUUID(),
+          is_completed: false
+        })));
+        setText('');
+      } else {
+        setError(response.message || 'Failed to process thoughts. Please try again.');
+      }
     } catch (e) {
       console.error(e);
       setError('Failed to process thoughts. Please try again.');
@@ -144,7 +152,7 @@ export default function DumpPage() {
     setResults(prev => prev.map(i => i.id === id ? { ...i, is_completed: !currentStatus } : i));
     try {
       await toggleComplete(id, !currentStatus);
-    } catch (e) {
+    } catch {
       setResults(prev => prev.map(i => i.id === id ? { ...i, is_completed: currentStatus } : i));
     }
   };
@@ -210,7 +218,7 @@ export default function DumpPage() {
           lineHeight: 1.1,
           margin: 0
         }}>
-          What's on your mind?
+          What&apos;s on your mind?
         </h1>
         <p style={{
           fontSize: '15px',

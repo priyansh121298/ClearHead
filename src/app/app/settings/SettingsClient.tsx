@@ -66,7 +66,7 @@ export default function SettingsClient({ initialPrefs }: { initialPrefs: UserPre
       });
       setMessage({ type: 'success', text: 'Preferences saved' });
       setTimeout(() => setMessage(null), 3000);
-    } catch (e) {
+    } catch {
       setMessage({ type: 'error', text: 'Failed to save preferences' });
     }
     

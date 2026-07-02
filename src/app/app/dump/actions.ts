@@ -66,7 +66,7 @@ Example response:
     }));
 
     return { success: true, data: formattedData };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error processing dump:', error);
     return { success: false, error: 'Failed to process dump. Please try again.' };
   }

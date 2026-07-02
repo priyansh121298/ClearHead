@@ -22,10 +22,10 @@ export default async function LandingPage() {
         <div className="space-y-6 animate-fade-in-up">
           <h1 className="font-heading text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white leading-tight">
             Your brain is full. <br className="hidden sm:block" />
-            <span className="text-[#7B6EF6]">Let's sort it.</span>
+            <span className="text-[#7B6EF6]">Let&apos;s sort it.</span>
           </h1>
           <p className="text-lg sm:text-xl text-app-muted max-w-xl mx-auto leading-relaxed font-medium">
-            Dump your thoughts in 60 seconds. ClearHead organises them into tasks, ideas, worries and reminders — so you don't have to.
+            Dump your thoughts in 60 seconds. ClearHead organises them into tasks, ideas, worries and reminders — so you don&apos;t have to.
           </p>
         </div>
         
@@ -34,7 +34,7 @@ export default async function LandingPage() {
             href="/login"
             className="inline-flex px-10 py-4 bg-gradient-to-br from-app-primary to-app-secondary text-white rounded-2xl font-bold text-lg focus:outline-none focus:ring-4 focus:ring-app-primary/30 transition-all duration-300 shadow-[0_0_30px_rgba(123,110,246,0.3)] hover:shadow-[0_0_40px_rgba(123,110,246,0.5)] transform hover:-translate-y-1 hover:scale-[1.02]"
           >
-            Clear my head — it's free
+            Clear my head — it&apos;s free
           </Link>
         </div>
       </div>

@@ -17,7 +17,16 @@ export type DumpResult = {
   };
 };
 
-export async function processDump(rawText: string, userId: string) {
+export type ProcessDumpResponse = {
+  success: boolean;
+  message: string;
+  items?: Array<{
+    category: 'TASK' | 'IDEA' | 'WORRY' | 'REMINDER';
+    text: string;
+  }>;
+};
+
+export async function processDump(rawText: string, userId: string): Promise<ProcessDumpResponse> {
   const supabase = createClient();
   const anthropic = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
@@ -101,6 +110,7 @@ Output ONLY valid JSON:
   // Return the parsed items to the client
   return {
     success: true,
-    data: parsedJson.items,
+    message: 'Successfully processed thoughts.',
+    items: parsedJson.items,
   };
 }
