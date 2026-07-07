@@ -79,6 +79,7 @@ export const NeuralBrandBackground = ({
   className,
 }: NeuralBrandBackgroundProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const elapsedTimeRef = useRef(0);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -341,8 +342,9 @@ export const NeuralBrandBackground = ({
     let pulseSpawnTimer = 0;
 
     const animate = () => {
-      const elapsed = clock.getElapsedTime();
       const delta = clock.getDelta();
+      elapsedTimeRef.current += delta;
+      const elapsed = elapsedTimeRef.current;
 
       // ── Filler node drift ──
       nodes.forEach(({ mesh, velocity, pulsePhase, isLetter }) => {
