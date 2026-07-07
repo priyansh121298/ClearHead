@@ -42,6 +42,7 @@ export default function SettingsClient({ initialPrefs }: { initialPrefs: UserPre
   const [ampm, setAmpm] = useState(parsed.ampm);
   const [timezone, setTimezone] = useState(initialPrefs.timezone);
   const [enabled, setEnabled] = useState(initialPrefs.morning_card_enabled);
+  const [weeklyEnabled, setWeeklyEnabled] = useState(initialPrefs.weekly_report_enabled);
   
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -63,6 +64,7 @@ export default function SettingsClient({ initialPrefs }: { initialPrefs: UserPre
         morning_card_time: hhmm,
         timezone,
         morning_card_enabled: enabled,
+        weekly_report_enabled: weeklyEnabled,
       });
       setMessage({ type: 'success', text: 'Preferences saved' });
       setTimeout(() => setMessage(null), 3000);
@@ -221,6 +223,66 @@ export default function SettingsClient({ initialPrefs }: { initialPrefs: UserPre
             </div>
           </div>
 
+        </section>
+
+        {/* Weekly Report Section */}
+        <section style={{
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.07)',
+          borderRadius: '16px',
+          padding: '32px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '32px',
+          animation: 'fadeSlideUp 0.4s ease forwards',
+          animationDelay: '0.1s',
+          opacity: 0,
+          animationFillMode: 'forwards'
+        }}>
+          <div>
+            <h2 className="font-heading" style={{ fontSize: '18px', fontWeight: 700, color: '#F0EFF8', margin: 0 }}>Weekly Report</h2>
+            <p style={{ fontSize: '14px', color: '#6B6882', marginTop: '6px', marginBottom: 0 }}>
+              Receive a weekly synthesis of your mental clarity and progress.
+            </p>
+          </div>
+
+          {/* Toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '15px', fontWeight: 500, color: '#C4C2D4' }}>Enable weekly summary email</span>
+            <button 
+              type="button" 
+              role="switch" 
+              aria-checked={weeklyEnabled}
+              onClick={() => setWeeklyEnabled(!weeklyEnabled)}
+              style={{
+                position: 'relative',
+                display: 'inline-flex',
+                height: '24px',
+                width: '44px',
+                flexShrink: 0,
+                cursor: 'pointer',
+                borderRadius: '9999px',
+                border: '2px solid transparent',
+                transition: 'background-color 0.3s ease-in-out',
+                background: weeklyEnabled ? '#7B6EF6' : 'rgba(255,255,255,0.1)'
+              }}
+            >
+              <span 
+                aria-hidden="true" 
+                style={{
+                  pointerEvents: 'none',
+                  display: 'inline-block',
+                  height: '20px',
+                  width: '20px',
+                  borderRadius: '50%',
+                  background: 'white',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                  transition: 'transform 0.3s ease-in-out',
+                  transform: weeklyEnabled ? 'translateX(20px)' : 'translateX(0)'
+                }}
+              />
+            </button>
+          </div>
         </section>
 
         {/* Save Area */}

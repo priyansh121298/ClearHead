@@ -5,6 +5,7 @@ export type UserPrefs = {
   morning_card_time: string;
   timezone: string;
   morning_card_enabled: boolean;
+  weekly_report_enabled: boolean;
 };
 
 export async function getUserPrefs(): Promise<UserPrefs> {
@@ -27,6 +28,7 @@ export async function getUserPrefs(): Promise<UserPrefs> {
     morning_card_time: data?.morning_card_time || '08:00',
     timezone: data?.timezone || 'Asia/Kolkata',
     morning_card_enabled: data?.morning_card_enabled ?? false,
+    weekly_report_enabled: data?.weekly_report_enabled ?? true,
   };
 }
 
@@ -42,6 +44,7 @@ export async function saveUserPrefs(prefs: UserPrefs) {
       morning_card_time: prefs.morning_card_time,
       timezone: prefs.timezone,
       morning_card_enabled: prefs.morning_card_enabled,
+      weekly_report_enabled: prefs.weekly_report_enabled,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' }); 
 

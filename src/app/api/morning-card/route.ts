@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { Resend } from 'resend';
+// import { Resend } from 'resend';
+import sgMail from '@sendgrid/mail';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// const resend = new Resend(process.env.RESEND_API_KEY);
+sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
 
 // Use the service role key to securely query user data without needing an active session
 const supabaseAdmin = createClient(
@@ -172,14 +174,23 @@ export async function POST(request: Request) {
       </html>
     `;
 
-    const { data: emailData, error: emailError } = await resend.emails.send({
-      from: 'ClearHead <onboarding@resend.dev>',
-      to: user.email,
-      subject: 'Your 3 things for today — ClearHead',
-      html: htmlBody,
-    });
-
-    if (emailError) {
+    // const { data: emailData, error: emailError } = await resend.emails.send({
+    //   from: 'ClearHead <onboarding@resend.dev>',
+    //   to: user.email,
+    //   subject: 'Your 3 things for today — ClearHead',
+    //   html: htmlBody,
+    // });
+    
+    let emailData;
+    try {
+      const response = await sgMail.send({
+        to: user.email,
+        from: 'opuchapuchik@gmail.com',
+        subject: 'Your 3 things for today — ClearHead',
+        html: htmlBody,
+      });
+      emailData = { id: response[0].headers['x-message-id'] };
+    } catch (emailError) {
       console.error('Failed to send email:', emailError);
       return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });
     }
