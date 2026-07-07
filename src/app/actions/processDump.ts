@@ -7,6 +7,7 @@ export type DumpResult = {
   items: Array<{
     category: 'TASK' | 'IDEA' | 'WORRY' | 'REMINDER';
     text: string;
+    estimated_minutes?: number;
   }>;
   summary: string;
   count: {
@@ -23,6 +24,7 @@ export type ProcessDumpResponse = {
   items?: Array<{
     category: 'TASK' | 'IDEA' | 'WORRY' | 'REMINDER';
     text: string;
+    estimated_minutes?: number;
   }>;
 };
 
@@ -44,8 +46,9 @@ Sort each thought into: TASK (action verb + object, max 8 words),
 IDEA (interesting, no action needed), WORRY (acknowledge warmly 
 in one sentence, then file it), REMINDER (time or person bound, 
 extract when/who). Never judge. Never moralize. Be warm but neutral.
+For TASK items only, estimate duration and output estimated_minutes (a number like 5, 15, 30, 60).
 Output ONLY valid JSON: 
-{items:[{category,text}], summary:string, count:{tasks,ideas,worries,reminders}}`,
+{items:[{category,text,estimated_minutes}], summary:string, count:{tasks,ideas,worries,reminders}}`,
       messages: [{ role: 'user', content: rawText }],
     });
 
@@ -94,6 +97,7 @@ Output ONLY valid JSON:
     dump_id: dumpData.id,
     category: item.category,
     text: item.text,
+    estimated_minutes: item.estimated_minutes,
   }));
 
   const { error: itemsError } = await supabase.from('dump_items').insert(itemsToInsert);

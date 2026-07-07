@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { FloatingDock } from '@/components/ui/floating-dock';
 import { Brain, Clock, Settings, LogOut } from 'lucide-react';
@@ -90,18 +91,8 @@ export default function AppLayoutClient({
       </div>
 
       {/* Branding - Mobile & Desktop Header Left */}
-      <div className="fixed top-6 left-6 z-40 flex items-center gap-3 bg-[#13121F]/80 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 shadow-lg">
-        <motion.span 
-          style={{ filter: 'drop-shadow(0 0 12px rgba(123,110,246,0.9)) drop-shadow(0 0 24px rgba(123,110,246,0.4))' }}
-          animate={{ opacity: [0.8, 1, 0.8] }}
-          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-          className="text-lg"
-        >
-          🧠
-        </motion.span>
-        <span className="font-heading font-[800] text-[18px] tracking-wider text-white">
-          ClearHead
-        </span>
+      <div className="fixed top-6 left-6 z-40 flex items-center justify-center">
+        <Image src="/clearhead-wordmark.svg" alt="ClearHead" width={200} height={34} priority className="h-auto w-[200px]" />
       </div>
 
     </div>

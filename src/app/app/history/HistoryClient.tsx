@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { type HistoryItem, getHistory, toggleComplete } from './actions';
+import { chunkTask } from '../../actions/chunkTask';
+import { motion, AnimatePresence } from 'motion/react';
 
 const TABS = ['ALL', 'TASK', 'IDEA', 'WORRY', 'REMINDER'] as const;
 type TabType = typeof TABS[number];
@@ -68,6 +70,10 @@ export default function HistoryClient({ initialData }: { initialData: HistoryIte
   const [hasMore, setHasMore] = useState(initialData.length === 50);
 
   const [hoverTab, setHoverTab] = useState<string | null>(null);
+  const [isChunking, setIsChunking] = useState<string | null>(null);
+  const [expandedTasks, setExpandedTasks] = useState<Record<string, boolean>>({});
+
+  const toggleExpand = (id: string) => setExpandedTasks(prev => ({ ...prev, [id]: !prev[id] }));
 
   const loadFilter = async (filter: TabType) => {
     setIsLoading(true);
@@ -98,13 +104,64 @@ export default function HistoryClient({ initialData }: { initialData: HistoryIte
     setIsLoading(false);
   };
 
-  const handleToggle = async (id: string, currentStatus: boolean) => {
-    setItems(prev => prev.map(i => i.id === id ? { ...i, is_completed: !currentStatus } : i));
+  const handleToggle = async (id: string, currentStatus: boolean, isChild: boolean = false, parentId: string | null = null) => {
+    setItems(prev => prev.map(i => {
+      if (!isChild && i.id === id) {
+        return { ...i, is_completed: !currentStatus };
+      }
+      if (isChild && i.id === parentId && i.children) {
+        return {
+          ...i,
+          children: i.children.map(c => c.id === id ? { ...c, is_completed: !currentStatus } : c)
+        };
+      }
+      return i;
+    }));
     try {
       await toggleComplete(id, !currentStatus);
     } catch (e) {
-      setItems(prev => prev.map(i => i.id === id ? { ...i, is_completed: currentStatus } : i));
+      setItems(prev => prev.map(i => {
+        if (!isChild && i.id === id) {
+          return { ...i, is_completed: currentStatus };
+        }
+        if (isChild && i.id === parentId && i.children) {
+          return {
+            ...i,
+            children: i.children.map(c => c.id === id ? { ...c, is_completed: currentStatus } : c)
+          };
+        }
+        return i;
+      }));
       console.error(e);
+    }
+  };
+
+  const handleChunkTask = async (id: string) => {
+    setIsChunking(id);
+    try {
+      const res = await chunkTask(id);
+      if (res.success && res.data) {
+        setItems(prev => prev.map(item => {
+          if (item.id === id) {
+            return { 
+              ...item, 
+              children: res.data?.map(child => ({
+                id: child.id,
+                category: 'TASK',
+                text: child.text,
+                is_completed: child.is_completed,
+                estimated_minutes: child.estimated_minutes,
+                created_at: child.created_at
+              }))
+            };
+          }
+          return item;
+        }));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsChunking(null);
     }
   };
 
@@ -307,7 +364,91 @@ export default function HistoryClient({ initialData }: { initialData: HistoryIte
                                 )}
                               </button>
                             )}
-                            <span style={{ flex: 1 }}>{item.text}</span>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                                <span style={{ flex: 1 }}>{item.text}</span>
+                                {item.estimated_minutes && (
+                                  <span style={{ fontSize: '11px', color: '#6B6882' }}>~{item.estimated_minutes} min</span>
+                                )}
+                                {item.category === 'TASK' && item.estimated_minutes && item.estimated_minutes >= 20 && (!item.children || item.children.length === 0) && (
+                                  <button
+                                    onClick={() => handleChunkTask(item.id)}
+                                    disabled={isChunking === item.id}
+                                    style={{
+                                      fontSize: '11px',
+                                      color: '#A89EF8',
+                                      background: 'rgba(123,110,246,0.1)',
+                                      border: '1px solid rgba(123,110,246,0.2)',
+                                      padding: '2px 8px',
+                                      borderRadius: '12px',
+                                      cursor: isChunking === item.id ? 'not-allowed' : 'pointer',
+                                      opacity: isChunking === item.id ? 0.5 : 1
+                                    }}
+                                  >
+                                    {isChunking === item.id ? 'Breaking down...' : 'Break it down'}
+                                  </button>
+                                )}
+                              </div>
+                              
+                              {/* Render children if they exist */}
+                              {item.children && item.children.length > 0 && (
+                                <div style={{ marginTop: '8px' }}>
+                                  <button
+                                    onClick={() => toggleExpand(item.id)}
+                                    style={{
+                                      display: 'flex', alignItems: 'center', gap: '4px',
+                                      fontSize: '11px', color: '#8E8BA8', background: 'transparent',
+                                      border: 'none', cursor: 'pointer', padding: '4px 0'
+                                    }}
+                                  >
+                                    {item.text.length > 0 && item.text.split(' ')[0]} ▾ {item.children.length} steps
+                                  </button>
+                                  <AnimatePresence initial={false}>
+                                    {expandedTasks[item.id] && (
+                                      <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                        style={{ overflow: 'hidden' }}
+                                      >
+                                        <div style={{
+                                          marginTop: '12px',
+                                          paddingLeft: '16px',
+                                          borderLeft: '1px solid rgba(255,255,255,0.08)',
+                                          display: 'grid',
+                                          gap: '10px',
+                                          paddingBottom: '8px'
+                                        }}>
+                                          {item.children.map(child => (
+                                            <div key={child.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                      <button
+                                        onClick={() => handleToggle(child.id, child.is_completed || false, true, item.id)}
+                                        style={{
+                                          width: '14px', height: '14px', borderRadius: '50%',
+                                          border: child.is_completed ? 'none' : '1.5px solid rgba(123,110,246,0.4)',
+                                          background: child.is_completed ? '#7B6EF6' : 'transparent',
+                                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                          cursor: 'pointer', flexShrink: 0, marginTop: '2px'
+                                        }}
+                                      >
+                                        {child.is_completed && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                                      </button>
+                                      <div style={{ flex: 1, fontSize: '13px', color: child.is_completed ? '#6B6882' : '#C4C2D4', textDecoration: child.is_completed ? 'line-through' : 'none', lineHeight: 1.4 }}>
+                                        {child.text}
+                                        {child.estimated_minutes && (
+                                          <span style={{ fontSize: '11px', color: '#6B6882', marginLeft: '6px' }}>~{child.estimated_minutes} min</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                          ))}
+                                        </div>
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>

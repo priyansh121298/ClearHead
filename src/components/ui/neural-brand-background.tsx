@@ -137,12 +137,12 @@ export const NeuralBrandBackground = ({
           return { pos: new THREE.Vector3(offset, 0, 0), rot: 0 };
         } else if (variant === 1) {
           // vertical
-          return { pos: new THREE.Vector3(0, -offset, 0), rot: 90 };
+          return { pos: new THREE.Vector3(0, -offset, 0), rot: -90 };
         } else {
           // diagonal
           return {
             pos: new THREE.Vector3(offset * 0.75, -offset * 0.55, 0),
-            rot: 45,
+            rot: -45,
           };
         }
       });

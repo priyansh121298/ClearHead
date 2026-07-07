@@ -4,14 +4,18 @@ import { useState, useRef, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { processDump } from '../../actions/processDump';
 import { toggleComplete } from '../history/actions';
+import { getNextActions, type NextActionItem } from '../../actions/getNextActions';
+import { chunkTask } from '../../actions/chunkTask';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 type DisplayItem = {
   id: string;
   category: 'TASK' | 'IDEA' | 'WORRY' | 'REMINDER';
   text: string;
   is_completed?: boolean;
+  estimated_minutes?: number;
+  children?: { id: string; text: string; is_completed: boolean; estimated_minutes?: number }[];
 };
 
 const AnimatedLoading = () => {
@@ -71,6 +75,12 @@ export default function DumpPage() {
   const [results, setResults] = useState<DisplayItem[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   
+  const [nextActions, setNextActions] = useState<NextActionItem[]>([]);
+  const [isChunking, setIsChunking] = useState<string | null>(null);
+  const [expandedTasks, setExpandedTasks] = useState<Record<string, boolean>>({});
+
+  const toggleExpand = (id: string) => setExpandedTasks(prev => ({ ...prev, [id]: !prev[id] }));
+
   const [isFocused, setIsFocused] = useState(false);
   const [isHoveredMic, setIsHoveredMic] = useState(false);
   const [isHoveredSubmit, setIsHoveredSubmit] = useState(false);
@@ -82,7 +92,13 @@ export default function DumpPage() {
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) setUserId(data.user.id);
+      if (data.user) {
+        setUserId(data.user.id);
+        getNextActions().then(res => {
+          console.log('getNextActions result:', res);
+          if (res.success && res.data) setNextActions(res.data);
+        });
+      }
     });
 
     if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
@@ -156,6 +172,58 @@ export default function DumpPage() {
       await toggleComplete(id, !currentStatus);
     } catch {
       setResults(prev => prev.map(i => i.id === id ? { ...i, is_completed: currentStatus } : i));
+    }
+  };
+
+  const handleNextActionComplete = async (id: string, currentStatus: boolean) => {
+    if (currentStatus) return; // already completed
+    
+    // 1. Immediately show checked state
+    setNextActions(prev => prev.map(i => i.id === id ? { ...i, is_completed: true } : i));
+    
+    // 2. Short delay so user sees check register
+    await new Promise(resolve => setTimeout(resolve, 450));
+    
+    // 3. Remove from list to trigger exit animation
+    setNextActions(prev => prev.filter(i => i.id !== id));
+    
+    // Persist to DB
+    try {
+      await toggleComplete(id, true);
+    } catch (e) {
+      console.error(e);
+    }
+
+    // 4. Gracefully re-fetch next best task
+    getNextActions().then(res => {
+      if (res.success && res.data) setNextActions(res.data);
+    });
+  };
+
+  const handleChunkTask = async (id: string) => {
+    setIsChunking(id);
+    try {
+      const res = await chunkTask(id);
+      if (res.success && res.data) {
+        setResults(prev => prev.map(item => {
+          if (item.id === id) {
+            return { 
+              ...item, 
+              children: res.data?.map(child => ({
+                id: child.id,
+                text: child.text,
+                is_completed: child.is_completed,
+                estimated_minutes: child.estimated_minutes
+              }))
+            };
+          }
+          return item;
+        }));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsChunking(null);
     }
   };
 
@@ -235,6 +303,7 @@ export default function DumpPage() {
           No filters. No judgment. Just let it out.
         </p>
       </div>
+
 
       {/* Input Form */}
       <div style={{ 
@@ -335,6 +404,77 @@ export default function DumpPage() {
           Clear my head
         </button>
       </div>
+
+      {/* Right Now Section */}
+      {nextActions.length > 0 && (
+        <div style={{ maxWidth: '680px', margin: '40px auto 40px auto' }}>
+          <h2 style={{ fontSize: '13px', fontWeight: 700, color: '#6B6882', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', marginLeft: '8px' }}>
+            Right now
+          </h2>
+          <div style={{ display: 'grid', gap: '10px' }}>
+            <AnimatePresence mode="popLayout">
+              {nextActions.map((action) => {
+                const rankStyles = {
+                  priority: { border: 'rgba(251,113,133,0.3)', bg: 'rgba(251,113,133,0.05)', dot: '#FB7185', label: 'Priority' },
+                  easy_win: { border: 'rgba(45,212,191,0.3)', bg: 'rgba(45,212,191,0.05)', dot: '#2DD4BF', label: 'Easy Win' },
+                  optional: { border: 'rgba(255,255,255,0.1)', bg: 'rgba(255,255,255,0.02)', dot: '#94A3B8', label: 'Optional' }
+                }[action.priority_rank];
+                
+                return (
+                  <motion.div
+                    key={action.id}
+                    layout
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: action.is_completed ? 0.6 : 1, y: 0 }}
+                    exit={{ x: 100, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                    style={{
+                      display: 'flex', alignItems: 'flex-start', gap: '12px',
+                      background: rankStyles.bg,
+                      border: `1px solid ${rankStyles.border}`,
+                      padding: '14px 18px',
+                      borderRadius: '14px',
+                    }}
+                  >
+                    <button
+                      onClick={() => handleNextActionComplete(action.id, action.is_completed)}
+                      style={{
+                        width: '18px', height: '18px', borderRadius: '50%',
+                        border: action.is_completed ? 'none' : `1.5px solid ${rankStyles.dot}`,
+                        background: action.is_completed ? rankStyles.dot : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', flexShrink: 0, marginTop: '2px',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {action.is_completed && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                    </button>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: rankStyles.dot, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          {rankStyles.label}
+                        </span>
+                        {action.estimated_minutes && (
+                          <span style={{ fontSize: '11px', color: '#6B6882' }}>~{action.estimated_minutes} min</span>
+                        )}
+                      </div>
+                      <div style={{ 
+                        fontSize: '14px', 
+                        color: action.is_completed ? '#6B6882' : '#E2E8F0', 
+                        textDecoration: action.is_completed ? 'line-through' : 'none', 
+                        lineHeight: 1.5,
+                        transition: 'color 0.2s ease'
+                      }}>
+                        {action.text}
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
+        </div>
+      )}
 
       {/* Loading State */}
       {isLoading && <AnimatedLoading />}
@@ -465,7 +605,91 @@ export default function DumpPage() {
                               )}
                             </button>
                           )}
-                          <span style={{ flex: 1 }}>{item.text}</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                              <span style={{ flex: 1 }}>{item.text}</span>
+                              {item.estimated_minutes && (
+                                <span style={{ fontSize: '11px', color: '#6B6882' }}>~{item.estimated_minutes} min</span>
+                              )}
+                              {item.category === 'TASK' && item.estimated_minutes && item.estimated_minutes >= 20 && !item.children && (
+                                <button
+                                  onClick={() => handleChunkTask(item.id)}
+                                  disabled={isChunking === item.id}
+                                  style={{
+                                    fontSize: '11px',
+                                    color: '#A89EF8',
+                                    background: 'rgba(123,110,246,0.1)',
+                                    border: '1px solid rgba(123,110,246,0.2)',
+                                    padding: '2px 8px',
+                                    borderRadius: '12px',
+                                    cursor: isChunking === item.id ? 'not-allowed' : 'pointer',
+                                    opacity: isChunking === item.id ? 0.5 : 1
+                                  }}
+                                >
+                                  {isChunking === item.id ? 'Breaking down...' : 'Break it down'}
+                                </button>
+                              )}
+                            </div>
+                            
+                            {/* Render children if they exist */}
+                            {item.children && item.children.length > 0 && (
+                              <div style={{ marginTop: '8px' }}>
+                                <button
+                                  onClick={() => toggleExpand(item.id)}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: '4px',
+                                    fontSize: '11px', color: '#8E8BA8', background: 'transparent',
+                                    border: 'none', cursor: 'pointer', padding: '4px 0'
+                                  }}
+                                >
+                                  {item.text.length > 0 && item.text.split(' ')[0]} ▾ {item.children.length} steps
+                                </button>
+                                <AnimatePresence initial={false}>
+                                  {expandedTasks[item.id] && (
+                                    <motion.div
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: 'auto', opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      transition={{ duration: 0.2 }}
+                                      style={{ overflow: 'hidden' }}
+                                    >
+                                      <div style={{
+                                        marginTop: '12px',
+                                        paddingLeft: '16px',
+                                        borderLeft: '1px solid rgba(255,255,255,0.08)',
+                                        display: 'grid',
+                                        gap: '10px',
+                                        paddingBottom: '8px'
+                                      }}>
+                                        {item.children.map(child => (
+                                          <div key={child.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                    <button
+                                      onClick={() => handleToggleComplete(child.id, child.is_completed || false)}
+                                      style={{
+                                        width: '14px', height: '14px', borderRadius: '50%',
+                                        border: child.is_completed ? 'none' : '1.5px solid rgba(123,110,246,0.4)',
+                                        background: child.is_completed ? '#7B6EF6' : 'transparent',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        cursor: 'pointer', flexShrink: 0, marginTop: '2px'
+                                      }}
+                                    >
+                                      {child.is_completed && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                                    </button>
+                                    <div style={{ flex: 1, fontSize: '13px', color: child.is_completed ? '#6B6882' : '#C4C2D4', textDecoration: child.is_completed ? 'line-through' : 'none', lineHeight: 1.4 }}>
+                                      {child.text}
+                                      {child.estimated_minutes && (
+                                        <span style={{ fontSize: '11px', color: '#6B6882', marginLeft: '6px' }}>~{child.estimated_minutes} min</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                        ))}
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>

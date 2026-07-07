@@ -8,6 +8,14 @@ const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: '--font-jakart
 export const metadata: Metadata = {
   title: "Clearhead App",
   description: "Clearhead App built with Next.js",
+  icons: {
+    icon: [
+      { url: '/clearhead-app-icon.svg', type: 'image/svg+xml' }
+    ],
+    apple: [
+      { url: '/clearhead-app-icon.svg' }
+    ]
+  }
 };
 
 export default function RootLayout({

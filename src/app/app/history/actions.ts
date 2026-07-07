@@ -8,6 +8,8 @@ export type HistoryItem = {
   text: string;
   is_completed: boolean;
   created_at: string;
+  estimated_minutes?: number;
+  children?: HistoryItem[];
 };
 
 export async function getHistory(page: number = 0, limit: number = 50, filter?: string) {
@@ -30,9 +32,11 @@ export async function getHistory(page: number = 0, limit: number = 50, filter?: 
       text,
       is_completed,
       created_at,
+      estimated_minutes,
       dumps!inner(user_id)
     `)
     .eq('dumps.user_id', user.id)
+    .is('parent_item_id', null)
     .gte('created_at', thirtyDaysAgoStr)
     .order('created_at', { ascending: false })
     .range(page * limit, (page + 1) * limit - 1);
@@ -48,15 +52,43 @@ export async function getHistory(page: number = 0, limit: number = 50, filter?: 
     throw new Error('Failed to fetch history');
   }
 
+  const parentIds = data.map(d => d.id);
+  let childrenData: any[] = [];
+  
+  if (parentIds.length > 0) {
+    const { data: cData, error: cError } = await supabase
+      .from('dump_items')
+      .select('id, category, text, is_completed, created_at, estimated_minutes, parent_item_id')
+      .in('parent_item_id', parentIds)
+      .order('created_at', { ascending: true });
+      
+    if (!cError && cData) {
+      childrenData = cData;
+    }
+  }
+
   // We map out the `dumps` relation object before returning to client
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data as any[]).map(item => ({
-    id: item.id,
-    category: item.category,
-    text: item.text,
-    is_completed: item.is_completed || false,
-    created_at: item.created_at,
-  })) as HistoryItem[];
+  return (data as any[]).map(item => {
+    const itemChildren = childrenData.filter(c => c.parent_item_id === item.id).map(c => ({
+      id: c.id,
+      category: c.category,
+      text: c.text,
+      is_completed: c.is_completed || false,
+      created_at: c.created_at,
+      estimated_minutes: c.estimated_minutes,
+    }));
+
+    return {
+      id: item.id,
+      category: item.category,
+      text: item.text,
+      is_completed: item.is_completed || false,
+      created_at: item.created_at,
+      estimated_minutes: item.estimated_minutes,
+      children: itemChildren,
+    };
+  }) as HistoryItem[];
 }
 
 export async function toggleComplete(itemId: string, completed: boolean) {
