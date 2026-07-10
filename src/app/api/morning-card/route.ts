@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 // import { Resend } from 'resend';
 import sgMail from '@sendgrid/mail';
+import { apiRateLimit } from '@/lib/rate-limit';
+import * as Sentry from "@sentry/nextjs";
 
 // const resend = new Resend(process.env.RESEND_API_KEY);
 sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
@@ -13,6 +15,14 @@ const supabaseAdmin = createClient(
 );
 
 export async function POST(request: Request) {
+  if (apiRateLimit) {
+    const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1';
+    const { success } = await apiRateLimit.limit(ip);
+    if (!success) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    }
+  }
+
   // 1. Check CRON_SECRET authorization
   const authHeader = request.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -34,10 +44,8 @@ export async function POST(request: Request) {
       console.error('Failed to fetch user:', userError);
       return NextResponse.json({ error: 'User not found or has no email' }, { status: 404 });
     }
-    
-    console.log("1. Found user email:", user.email);
 
-    // 3. Query ALL incomplete tasks first to log them
+    // 3. Query ALL incomplete tasks first
     const { data: allTasks, error: tasksError } = await supabaseAdmin
       .from('dump_items')
       .select(`
@@ -59,29 +67,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 });
     }
 
-    console.log(`2. Total incomplete tasks found: ${allTasks?.length || 0}`);
-    if (allTasks && allTasks.length > 0) {
-      console.log("   Tasks text:", allTasks.map(t => t.text));
-    }
-
     const threeDaysAgo = new Date();
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    console.log("3. Checking last_nudged_at cooldown logic...");
     const tasks = allTasks?.filter(t => {
-      // TEMPORARILY DISABLED: const isOldEnough = new Date(t.created_at) <= threeDaysAgo;
-      // TEMPORARILY DISABLED: const passesCooldown = !t.last_nudged_at || new Date(t.last_nudged_at) < threeDaysAgo;
-      // TEMPORARILY DISABLED: const passed = isOldEnough && passesCooldown;
-      const passed = true; // Temporary bypass for testing
-      console.log(`   Task "${t.text}" - passed: ${passed}`);
-      return passed;
+      const isOldEnough = new Date(t.created_at) <= threeDaysAgo;
+      const passesCooldown = !t.last_nudged_at || new Date(t.last_nudged_at) < threeDaysAgo;
+      return isOldEnough && passesCooldown;
     }).slice(0, 3) || [];
 
     if (!tasks || tasks.length === 0) {
-      console.log("   EARLY RETURN: No tasks passed cooldown filter. Returning 200.");
       return NextResponse.json({ message: 'No incomplete tasks to send' }, { status: 200 });
     }
 
@@ -197,7 +195,6 @@ export async function POST(request: Request) {
     // });
     
     let emailData;
-    console.log(`4. About to send SendGrid email to: ${user.email}`);
     try {
       const response = await sgMail.send({
         to: user.email,
@@ -206,9 +203,9 @@ export async function POST(request: Request) {
         html: htmlBody,
       });
       emailData = { id: response[0].headers['x-message-id'] };
-      console.log("5. SendGrid email sent successfully, response headers:", JSON.stringify(response[0].headers));
     } catch (emailError) {
       console.error('5. Failed to send SendGrid email:', emailError);
+      Sentry.captureException(emailError);
       return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });
     }
 

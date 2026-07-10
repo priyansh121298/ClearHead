@@ -53,6 +53,7 @@ export async function getHistory(page: number = 0, limit: number = 50, filter?: 
   }
 
   const parentIds = data.map(d => d.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let childrenData: any[] = [];
   
   if (parentIds.length > 0) {

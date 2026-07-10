@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, Suspense } from 'react';
-import { login } from './actions';
+import { signup } from '../login/actions';
 import { createClient } from '@/lib/supabase/client';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -10,11 +10,10 @@ import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { motion } from 'motion/react';
 import posthog from 'posthog-js';
 
-function LoginForm() {
+function SignupForm() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  const [rememberEmail, setRememberEmail] = useState<boolean>(false);
   const formRef = useRef<HTMLFormElement>(null);
   
   const searchParams = useSearchParams();
@@ -23,14 +22,6 @@ function LoginForm() {
     const err = searchParams?.get('error');
     if (err === 'auth_failed') {
       setError('Authentication failed. Please try again.');
-    }
-    
-    // Load remembered email
-    const saved = localStorage.getItem('clearhead_remembered_email');
-    if (saved && formRef.current) {
-      const emailInput = formRef.current.elements.namedItem('email') as HTMLInputElement;
-      if (emailInput) emailInput.value = saved;
-      setRememberEmail(true);
     }
   }, [searchParams]);
 
@@ -43,26 +34,19 @@ function LoginForm() {
     setLoading(true);
 
     const formData = new FormData(formRef.current);
-    const email = formData.get('email') as string;
-    
-    if (rememberEmail && email) {
-      localStorage.setItem('clearhead_remembered_email', email);
-    } else {
-      localStorage.removeItem('clearhead_remembered_email');
-    }
-
-    const result = await login(formData);
+    const result = await signup(formData);
 
     if (result && 'error' in result) {
       setError(result.error as string);
     } else if (result && 'message' in result) {
       setMessage(result.message as string);
+      posthog.capture('user signup');
     }
     
     setLoading(false);
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleSignup = async () => {
     try {
       setError(null);
       setMessage(null);
@@ -79,15 +63,15 @@ function LoginForm() {
       }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (err) {
-      setError('Failed to initiate Google login.');
+      setError('Failed to initiate Google signup.');
     }
   };
 
   return (
     <>
       <div className="space-y-2 text-center">
-        <h1 className="font-heading text-3xl font-bold tracking-tighter text-[#F0EFF8]">Welcome back</h1>
-        <p className="text-sm text-[#8E8BA8]">Enter your email to sign in to your account</p>
+        <h1 className="font-heading text-3xl font-bold tracking-tighter text-[#F0EFF8]">Create account</h1>
+        <p className="text-sm text-[#8E8BA8]">Enter your email to join ClearHead</p>
       </div>
 
       {error && (
@@ -105,7 +89,7 @@ function LoginForm() {
       <div className="space-y-4 relative z-10">
         <button
           type="button"
-          onClick={handleGoogleLogin}
+          onClick={handleGoogleSignup}
           style={{
             background: '#FFFFFF',
             color: '#0F172A',
@@ -145,6 +129,27 @@ function LoginForm() {
 
       <form ref={formRef} className="space-y-4 relative z-10" onSubmit={handleSubmit}>
         <div className="space-y-2">
+          <label className="text-sm font-medium" style={{ color: '#C4C2D4' }} htmlFor="username">
+            Username
+          </label>
+          <input
+            id="username"
+            name="username"
+            type="text"
+            maxLength={30}
+            autoComplete="username"
+            placeholder="johndoe"
+            required
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '10px',
+              color: '#F0EFF8'
+            }}
+            className="w-full px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B6EF6] focus:border-transparent transition-colors placeholder:text-slate-500"
+          />
+        </div>
+        <div className="space-y-2">
           <label className="text-sm font-medium" style={{ color: '#C4C2D4' }} htmlFor="email">
             Email
           </label>
@@ -172,7 +177,7 @@ function LoginForm() {
             id="password"
             name="password"
             type="password"
-            autoComplete="current-password"
+            autoComplete="new-password"
             required
             style={{
               background: 'rgba(255,255,255,0.04)',
@@ -184,40 +189,16 @@ function LoginForm() {
           />
         </div>
         
-        <label className="flex items-center cursor-pointer" htmlFor="remember" style={{ width: 'fit-content' }}>
-          <input
-            id="remember"
-            type="checkbox"
-            checked={rememberEmail}
-            onChange={(e) => setRememberEmail(e.target.checked)}
-            className="sr-only"
-          />
-          <div
-            style={{
-              width: '16px', height: '16px', borderRadius: '50%',
-              border: rememberEmail ? 'none' : '1.5px solid rgba(255,255,255,0.4)',
-              background: rememberEmail ? '#7B6EF6' : 'transparent',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, transition: 'all 0.2s ease'
-            }}
-          >
-            {rememberEmail && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
-          </div>
-          <span className="ml-2 text-sm" style={{ color: '#C4C2D4' }}>
-            Remember my email
-          </span>
-        </label>
-        
         <div className="flex flex-col space-y-3 pt-2 text-center">
           <button
             type="submit"
             disabled={loading}
             className="w-full h-11 px-4 text-sm font-bold text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-[#7B6EF6] focus:ring-offset-2 focus:ring-offset-[#080810] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-[0_0_20px_rgba(108,95,230,0.4)] active:scale-[0.98] bg-gradient-to-br from-[#7B6EF6] to-[#2DD4BF]"
           >
-            {loading ? 'Processing...' : 'Sign In'}
+            {loading ? 'Processing...' : 'Create Account'}
           </button>
           <div className="pt-2 text-sm text-[#8E8BA8]">
-            Don't have an account? <Link href="/signup" className="text-[#7B6EF6] hover:text-[#2DD4BF] transition-colors">Sign up</Link>
+            Already have an account? <Link href="/login" className="text-[#7B6EF6] hover:text-[#2DD4BF] transition-colors">Sign in</Link>
           </div>
         </div>
       </form>
@@ -225,7 +206,7 @@ function LoginForm() {
   );
 }
 
-export default function LoginPage() {
+export default function SignupPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-[#050508] relative overflow-hidden text-white selection:bg-app-primary/30">
       
@@ -275,7 +256,7 @@ export default function LoginPage() {
             }}
           >
             <Suspense fallback={<div className="text-center text-sm text-[#8E8BA8]">Loading...</div>}>
-              <LoginForm />
+              <SignupForm />
             </Suspense>
           </div>
         </div>

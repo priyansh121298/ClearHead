@@ -8,8 +8,25 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
+    const { data: sessionData, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error && sessionData?.user) {
+      // Create user_prefs fallback for OAuth signups
+      const { data: prefs } = await supabase.from('user_prefs')
+        .select('user_id')
+        .eq('user_id', sessionData.user.id)
+        .single();
+        
+      if (!prefs) {
+        const email = sessionData.user.email || '';
+        const username = email.split('@')[0] || 'user';
+        await supabase.from('user_prefs').insert({
+          user_id: sessionData.user.id,
+          username: username,
+          morning_card_time: '08:00',
+          timezone: 'America/Los_Angeles',
+          morning_card_enabled: false
+        });
+      }
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

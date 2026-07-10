@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 // import { Resend } from 'resend';
 import Anthropic from '@anthropic-ai/sdk';
 import sgMail from '@sendgrid/mail';
+import { apiRateLimit } from '@/lib/rate-limit';
+import * as Sentry from "@sentry/nextjs";
 
 // const resend = new Resend(process.env.RESEND_API_KEY);
 sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
@@ -18,6 +20,14 @@ const anthropic = new Anthropic({
 });
 
 export async function POST(request: Request) {
+  if (apiRateLimit) {
+    const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1';
+    const { success } = await apiRateLimit.limit(ip);
+    if (!success) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    }
+  }
+
   // 1. Check CRON_SECRET authorization
   const authHeader = request.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -166,6 +176,7 @@ Output ONLY valid JSON in this format:
       }
     } catch (e) {
       console.error('Failed to generate synthesis with Claude, using fallback stats:', e);
+      Sentry.captureException(e);
       // Fallback already assigned above
     }
 
@@ -298,6 +309,7 @@ Output ONLY valid JSON in this format:
       emailData = { id: response[0].headers['x-message-id'] };
     } catch (emailError) {
       console.error('Failed to send email:', emailError);
+      Sentry.captureException(emailError);
       return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });
     }
 

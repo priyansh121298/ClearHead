@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import Anthropic from '@anthropic-ai/sdk';
+import * as Sentry from "@sentry/nextjs";
 
 export type ChunkedTask = {
   id: string;
@@ -74,6 +75,7 @@ Task to break down: "${taskData.text}"
     }
   } catch (e) {
     console.error('Failed to chunk task via Claude, using fallback:', e);
+    Sentry.captureException(e);
     usedFallback = true;
     
     const baseMinutes = taskData.estimated_minutes ? Math.max(1, Math.round(taskData.estimated_minutes / 3)) : 5;

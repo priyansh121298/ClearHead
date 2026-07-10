@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import Anthropic from '@anthropic-ai/sdk';
+import * as Sentry from "@sentry/nextjs";
 
 export type NextActionItem = {
   id: string;
@@ -143,6 +144,7 @@ ${JSON.stringify(tasksToRank.map(t => ({ id: t.id, text: t.text, estimated_minut
     }
   } catch (e) {
     console.error('Failed to get next actions from Claude, using fallback heuristic:', e);
+    Sentry.captureException(e);
     usedFallback = true;
     
     // Fallback logic

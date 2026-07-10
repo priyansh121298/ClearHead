@@ -8,6 +8,7 @@ import { getNextActions, type NextActionItem } from '../../actions/getNextAction
 import { chunkTask } from '../../actions/chunkTask';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { motion, AnimatePresence } from 'motion/react';
+import posthog from 'posthog-js';
 
 type DisplayItem = {
   id: string;
@@ -74,6 +75,7 @@ export default function DumpPage() {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<DisplayItem[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
   
   const [nextActions, setNextActions] = useState<NextActionItem[]>([]);
   const [isChunking, setIsChunking] = useState<string | null>(null);
@@ -94,6 +96,11 @@ export default function DumpPage() {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
         setUserId(data.user.id);
+        
+        supabase.from('user_prefs').select('username').eq('user_id', data.user.id).single().then(({ data: prefs }) => {
+          if (prefs?.username) setUsername(prefs.username);
+        });
+
         getNextActions().then(res => {
           console.log('getNextActions result:', res);
           if (res.success && res.data) setNextActions(res.data);
@@ -149,6 +156,7 @@ export default function DumpPage() {
     try {
       const response = await processDump(text, userId);
       if (response.success && response.items) {
+        posthog.capture('brain dump submitted');
         setResults(response.items.map(item => ({
           ...item,
           id: crypto.randomUUID(),
@@ -170,6 +178,9 @@ export default function DumpPage() {
     setResults(prev => prev.map(i => i.id === id ? { ...i, is_completed: !currentStatus } : i));
     try {
       await toggleComplete(id, !currentStatus);
+      if (!currentStatus) {
+        posthog.capture('task marked complete');
+      }
     } catch {
       setResults(prev => prev.map(i => i.id === id ? { ...i, is_completed: currentStatus } : i));
     }
@@ -178,6 +189,9 @@ export default function DumpPage() {
   const handleNextActionComplete = async (id: string, currentStatus: boolean) => {
     if (currentStatus) return; // already completed
     
+    posthog.capture('Right Now task interacted with');
+    posthog.capture('task marked complete');
+
     // 1. Immediately show checked state
     setNextActions(prev => prev.map(i => i.id === id ? { ...i, is_completed: true } : i));
     
@@ -201,6 +215,7 @@ export default function DumpPage() {
   };
 
   const handleChunkTask = async (id: string) => {
+    posthog.capture('"Break it down" clicked');
     setIsChunking(id);
     try {
       const res = await chunkTask(id);
@@ -291,7 +306,7 @@ export default function DumpPage() {
           lineHeight: 1.1,
           margin: 0
         }}>
-          What&apos;s on your mind?
+          What&apos;s on your mind{username ? `, ${username}` : ''}?
         </h1>
         <p style={{
           fontSize: '15px',

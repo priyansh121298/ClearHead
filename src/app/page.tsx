@@ -93,6 +93,11 @@ export default async function LandingPage() {
           </div>
         </div>
       </section>
+
+      <footer className="relative z-10 w-full py-8 border-t border-white/5 flex justify-center gap-6 text-sm text-app-muted">
+        <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
+        <Link href="/terms" className="hover:text-white transition-colors">Terms & Conditions</Link>
+      </footer>
     </div>
   );
 }

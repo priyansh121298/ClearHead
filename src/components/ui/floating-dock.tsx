@@ -113,6 +113,7 @@ function IconContainer({
   const ref = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const distance = useTransform(mouseY, (val: any) => {
     const bounds = ref.current?.getBoundingClientRect() ?? { y: 0, height: 0 };
     return val - bounds.y - bounds.height / 2;

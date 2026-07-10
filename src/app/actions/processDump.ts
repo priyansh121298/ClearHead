@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { dumpRateLimit } from '@/lib/rate-limit';
+import * as Sentry from "@sentry/nextjs";
 
 export type DumpResult = {
   items: Array<{
@@ -29,6 +31,13 @@ export type ProcessDumpResponse = {
 };
 
 export async function processDump(rawText: string, userId: string): Promise<ProcessDumpResponse> {
+  if (dumpRateLimit) {
+    const { success } = await dumpRateLimit.limit(userId);
+    if (!success) {
+      return { success: false, message: 'Too many requests. Please try again later.' };
+    }
+  }
+
   const supabase = createClient();
   const anthropic = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
@@ -59,6 +68,7 @@ Output ONLY valid JSON:
     }
   } catch (e) {
     console.error('Anthropic API or parsing failed:', e);
+    Sentry.captureException(e);
   }
 
   // Handle errors: if JSON parsing fails, store raw text and return fallback message

@@ -316,6 +316,7 @@ export const NeuralBrandBackground = ({
       CYCLE.disperseDuration;
 
     let cycleTime = 0;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     let cycleStage: "scatter" | "assemble" | "hold" | "disperse" = "scatter";
 
     const regenerateScatterTargets = () => {

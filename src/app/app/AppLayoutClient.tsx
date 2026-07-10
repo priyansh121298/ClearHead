@@ -5,16 +5,19 @@ import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { FloatingDock } from '@/components/ui/floating-dock';
 import { Brain, Clock, Settings, LogOut } from 'lucide-react';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { motion } from 'motion/react';
 import { NeuralBrandBackground } from '@/components/ui/neural-brand-background';
 
 export default function AppLayoutClient({
   children,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   userEmail,
 }: {
   children: React.ReactNode;
   userEmail: string;
 }) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
